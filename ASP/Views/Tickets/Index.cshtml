@@ -1,1 +1,56 @@
-﻿<h1>Lista Zgłoszeń</h1>
+﻿@model IEnumerable<ASP.Models.Ticket>
+
+<h2>Lista zgłoszeń</h2>
+
+<a asp-controller="Tickets" asp-action="Create">Dodaj zgłoszenie</a>
+
+<br />
+<br />
+
+<form method="get">
+    <input type="text" name="search" placeholder="Szukaj po tytule..." />
+    <button type="submit">Szukaj</button>
+</form>
+
+<br />
+
+<ul>
+    @foreach (var ticket in Model)
+    {
+        <li>
+
+            <a asp-action="Details" asp-route-id="@ticket.Id">
+                <strong>@ticket.Title</strong>
+            </a>
+
+            <br />
+
+            Opis: @ticket.Description
+            <br />
+
+            Status:
+            @switch (ticket.Status)
+            {
+                case ASP.Models.TicketStatus.Open:
+                    <span style="color:green">Open</span>
+                    break;
+
+                case ASP.Models.TicketStatus.InProgress:
+                    <span style="color:orange">In Progress</span>
+                    break;
+
+                case ASP.Models.TicketStatus.Closed:
+                    <span style="color:red">Closed</span>
+                    break;
+            }
+
+            <br />
+
+            Data: @ticket.CreatedAt
+
+            <br />
+            <br />
+
+        </li>
+    }
+</ul>

@@ -1,0 +1,11 @@
+﻿@model ASP.Models.Ticket
+
+<h2>Szczegóły zgłoszenia</h2>
+
+<p><strong>ID:</strong> @Model.Id</p>
+<p><strong>Tytuł:</strong> @Model.Title</p>
+<p><strong>Opis:</strong> @Model.Description</p>
+<p><strong>Status:</strong> @Model.Status</p>
+<p><strong>Data:</strong> @Model.CreatedAt</p>
+
+<a asp-action="Index">Powrót</a>

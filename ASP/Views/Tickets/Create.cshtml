@@ -1,0 +1,21 @@
+﻿@model ASP.Models.Ticket
+
+<h2>Dodaj zgłoszenie</h2>
+
+<form asp-controller="Tickets" asp-action="Create" method="post">
+
+    <div>
+        <label>Tytuł</label>
+        <input asp-for="Title" />
+        <span asp-validation-for="Title"></span>
+    </div>
+
+    <div>
+        <label>Opis</label>
+        <textarea asp-for="Description"></textarea>
+        <span asp-validation-for="Description"></span>
+    </div>
+
+    <button type="submit">Dodaj</button>
+
+</form>
