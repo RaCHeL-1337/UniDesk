@@ -1,0 +1,71 @@
+### 🔹 1. Get all tickets (START)
+GET https://localhost:7002/api/tickets
+Accept: application/json
+
+
+### 🔹 2. Create valid ticket (TEST CORE + STRETCH)
+POST https://localhost:7002/api/tickets
+Content-Type: application/json
+
+{
+  "title": "SQLite test",
+  "description": "Should persist"
+}
+
+
+### 🔹 3. Get all tickets (AFTER CREATE)
+GET https://localhost:7002/api/tickets
+Accept: application/json
+
+
+### 🔹 4. Get ticket by id
+GET https://localhost:7002/api/tickets/1
+Accept: application/json
+
+### 🔹 5. Get non-existing ticket (404 TEST)
+GET https://localhost:7002/api/tickets/999
+Accept: application/json
+
+
+### 🔹 6. Create invalid ticket (400 TEST)
+POST https://localhost:7002/api/tickets
+Content-Type: application/json
+
+{
+  "title": "",
+  "description": ""
+}
+
+
+### 🔹 7. Create ticket for AUDIT (STRETCH)
+POST https://localhost:7002/api/tickets
+Content-Type: application/json
+
+{
+  "title": "Audit test",
+  "description": "Check dates"
+}
+
+
+### 🔹 8. Get all tickets (CHECK DATES)
+GET https://localhost:7002/api/tickets
+Accept: application/json
+
+### swaga
+
+### CHECK BEFORE UPDATE
+GET https://localhost:7002/api/tickets/8
+Accept: application/json
+
+### UPDATE TICKET
+PUT https://localhost:7002/api/tickets/8
+Content-Type: application/json
+
+{
+  "title": "UPDATED CHECK",
+  "description": "UPDATED CHECK"
+}
+
+### CHECK AFTER UPDATE
+GET https://localhost:7002/api/tickets/8
+Accept: application/json

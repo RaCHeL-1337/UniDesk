@@ -1,0 +1,78 @@
+﻿@model IEnumerable<UniDesk.Web.Models.Ticket>
+
+@{
+    ViewData["Title"] = "Lista zgłoszeń";
+}
+
+<h1>Lista zgłoszeń</h1>
+
+<p>
+    <a asp-controller="Tickets" asp-action="Create" class="btn btn-primary">
+        Dodaj nowe zgłoszenie
+    </a>
+</p>
+
+<form method="get" class="mb-3 d-flex gap-2">
+
+    <input type="text"
+           name="search"
+           value="@ViewBag.Search"
+           class="form-control"
+           placeholder="Szukaj..." />
+
+    <button type="submit" class="btn btn-primary">
+        Szukaj
+    </button>
+
+    <a asp-action="Index" class="btn btn-secondary">
+        Wyczyść
+    </a>
+
+</form>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>Tytuł</th>
+            <th>Opis</th>
+            <th>Status</th>
+            <th>Data utworzenia</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var ticket in Model)
+        {
+            <tr>
+                <td>@ticket.Id</td>
+
+                <td>
+                    <a asp-action="Details" asp-route-id="@ticket.Id">
+                        @ticket.Title
+                    </a>
+                </td>
+
+                <td>@ticket.Description</td>
+
+                <td>
+                    @switch (ticket.Status)
+                    {
+                        case UniDesk.Web.Models.TicketStatus.New:
+                            <span class="badge bg-primary">New</span>
+                            break;
+
+                        case UniDesk.Web.Models.TicketStatus.InProgress:
+                            <span class="badge bg-warning text-dark">InProgress</span>
+                            break;
+
+                        case UniDesk.Web.Models.TicketStatus.Closed:
+                            <span class="badge bg-success">Closed</span>
+                            break;
+                    }
+                </td>
+
+                <td>@ticket.CreatedAt</td>
+            </tr>
+        }
+    </tbody>
+</table>

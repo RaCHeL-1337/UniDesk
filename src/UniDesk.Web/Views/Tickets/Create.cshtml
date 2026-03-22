@@ -1,0 +1,31 @@
+﻿@model UniDesk.Web.Models.Ticket
+
+@{
+    ViewData["Title"] = "Nowe zgłoszenie";
+}
+
+<h1>Nowe zgłoszenie</h1>
+
+<form method="post">
+    <div class="mb-3">
+        <label asp-for="Title" class="form-label"></label>
+        <input asp-for="Title" class="form-control" />
+        <span asp-validation-for="Title" class="text-danger"></span>
+    </div>
+
+    <div class="mb-3">
+        <label asp-for="Description" class="form-label"></label>
+        <textarea asp-for="Description" class="form-control"></textarea>
+        <span asp-validation-for="Description" class="text-danger"></span>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Dodaj zgłoszenie</button>
+</form>
+
+<div class="mt-3">
+    <a asp-controller="Tickets" asp-action="Index" class="btn btn-secondary">Powrót do listy</a>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}
