@@ -18,24 +18,14 @@ namespace UniDesk.Web.Controllers
         }
 
         [HttpGet]
-        public ActionResult<IEnumerable<TicketReadDto>> GetAll()
+        public IActionResult GetAll([FromQuery] TicketQueryParameters parameters)
         {
-            var tickets = _ticketService.GetAll()
-                .Select(t => new TicketReadDto
-                {
-                    Id = t.Id,
-                    Title = t.Title,
-                    Status = t.Status,
-                    CreatedAt = t.CreatedAt,
-                    UpdatedAt = t.UpdatedAt
-                })
-                .ToList();
-
-            return Ok(tickets);
+            var result = _ticketService.GetAll(parameters);
+            return Ok(result);
         }
 
         [HttpGet("{id}")]
-        public ActionResult<TicketReadDto> GetById(int id)
+        public IActionResult GetById(int id)
         {
             var ticket = _ticketService.GetById(id);
 
@@ -55,7 +45,7 @@ namespace UniDesk.Web.Controllers
         }
 
         [HttpPost]
-        public ActionResult<TicketReadDto> Create([FromBody] CreateTicketRequest request)
+        public IActionResult Create([FromBody] CreateTicketRequest request)
         {
             try
             {

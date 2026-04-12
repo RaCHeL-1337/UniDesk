@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using UniDesk.Web.Models;
 using UniDesk.Web.Services;
+using UniDesk.Web.DTOs;
 
 namespace UniDesk.Web.Controllers
 {
@@ -14,44 +14,13 @@ namespace UniDesk.Web.Controllers
         }
 
         [HttpGet]
-        public IActionResult Index(string? search)
+        public IActionResult Index([FromQuery] TicketQueryParameters parameters)
         {
-            ViewBag.Search = search;
+            var result = _ticketService.GetAll(parameters);
 
-            var tickets = _ticketService.GetAll();
-            return View(tickets);
-        }
+            ViewBag.TotalCount = result.TotalCount;
 
-        [HttpGet]
-        public IActionResult Create()
-        {
-            return View();
-        }
-
-        [HttpPost]
-        public IActionResult Create(Ticket ticket)
-        {
-            if (!ModelState.IsValid)
-            {
-                return View(ticket);
-            }
-
-            _ticketService.Add(ticket);
-
-            return RedirectToAction(nameof(Index));
-        }
-
-        [HttpGet]
-        public IActionResult Details(int id)
-        {
-            var ticket = _ticketService.GetById(id);
-
-            if (ticket == null)
-            {
-                return NotFound();
-            }
-
-            return View(ticket);
+            return View(result.Items);
         }
     }
 }

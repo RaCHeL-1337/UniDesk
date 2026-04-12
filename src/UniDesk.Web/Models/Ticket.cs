@@ -23,7 +23,7 @@ namespace UniDesk.Web.Models
 
         public TicketStatus Status { get; set; } = TicketStatus.New;
 
-        public DateTime CreatedAt { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime UpdatedAt { get; set; }
     }
 }
