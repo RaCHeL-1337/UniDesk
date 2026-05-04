@@ -28,5 +28,23 @@ namespace UniDesk.UnitTests.Services
             service.UpdateStatus(ticket, TicketStatus.Closed);
             Assert.Equal(TicketStatus.Closed, ticket.Status);
         }
+
+        [Fact]
+        public void UpdateStatus_ShouldThrowException_WhenTicketIsAlreadyClosed()
+        {
+            var service = new TicketService();
+
+            var ticket = new Ticket()
+            {
+                Title = "Test",
+                Description = "Test",
+                Status = TicketStatus.Closed
+            };
+
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                service.UpdateStatus(ticket, TicketStatus.InProgress));
+
+            Assert.Equal("Ticket is already closed.", exception.Message);
+        }
     }
 }

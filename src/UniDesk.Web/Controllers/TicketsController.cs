@@ -20,19 +20,40 @@ namespace UniDesk.Web.Controllers
             var result = _ticketService.GetAll(parameters);
 
             ViewBag.TotalCount = result.TotalCount;
+            ViewBag.Search = parameters.Search;
+            ViewBag.Status = parameters.Status?.ToString();
+            ViewBag.SortOrder = parameters.SortOrder;
+            ViewBag.PageSize = parameters.PageSize;
 
             return View(result.Items);
         }
+
+        [HttpGet]
+        public IActionResult Details(int id)
+        {
+            var ticket = _ticketService.GetById(id);
+
+            if (ticket == null)
+            {
+                return NotFound();
+            }
+
+            return View(ticket);
+        }
+
         [HttpGet]
         public IActionResult Create()
         {
             return View();
         }
+
         [HttpPost]
         public IActionResult Create(CreateTicketRequest request)
         {
             if (!ModelState.IsValid)
+            {
                 return View(request);
+            }
 
             var ticket = new Ticket
             {

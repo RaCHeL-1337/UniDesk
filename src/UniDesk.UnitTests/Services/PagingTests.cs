@@ -32,5 +32,27 @@ namespace UniDesk.UnitTests.Services
 
             Assert.Equal(5, result.Count);
         }
+
+        [Fact]
+        public void Paging_ShouldReturnFirstPage_WhenPage1()
+        {
+            var tickets = Enumerable.Range(1, 15)
+                .Select(i => new Ticket
+                {
+                    Title = "T",
+                    Description = "D"
+                })
+                .AsQueryable();
+
+            int page = 1;
+            int pageSize = 10;
+
+            var result = tickets
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
+
+            Assert.Equal(10, result.Count);
+        }
     }
 }

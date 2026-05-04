@@ -1,5 +1,0 @@
-<Solution>
-  <Project Path="../UniDesk.UnitTests/UniDesk.UnitTests.csproj" Id="43e511fb-631a-4c62-9afa-4d3dc7b70680" />
-  <Project Path="../UniDesk.IntegrationTests/UniDesk.IntegrationTests.csproj" />
-  <Project Path="UniDesk.Web.csproj" />
-</Solution>

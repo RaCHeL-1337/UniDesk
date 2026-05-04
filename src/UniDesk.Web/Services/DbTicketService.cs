@@ -23,6 +23,11 @@ namespace UniDesk.Web.Services
                 query = query.Where(t => t.Status == parameters.Status.Value);
             }
 
+            if (!string.IsNullOrWhiteSpace(parameters.Search))
+            {
+                query = query.Where(t => t.Title.Contains(parameters.Search));
+            }
+
             int totalCount = query.Count();
 
             query = parameters.SortOrder?.ToLower() == "asc"

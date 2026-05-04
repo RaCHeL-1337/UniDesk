@@ -15,20 +15,21 @@
 <p>Liczba wszystkich zgłoszeń: @ViewBag.TotalCount</p>
 
 <form method="get" class="mb-3 d-flex gap-2">
+    <input type="text" name="search" value="@ViewBag.Search" class="form-control" placeholder="Szukaj po tytule" />
 
     <select name="status" class="form-select">
         <option value="">Wszystkie</option>
-        <option value="New">New</option>
-        <option value="InProgress">InProgress</option>
-        <option value="Closed">Closed</option>
+        <option value="New" selected="@(ViewBag.Status == "New")">New</option>
+        <option value="InProgress" selected="@(ViewBag.Status == "InProgress")">InProgress</option>
+        <option value="Closed" selected="@(ViewBag.Status == "Closed")">Closed</option>
     </select>
 
     <select name="sortOrder" class="form-select">
-        <option value="desc">Najnowsze</option>
-        <option value="asc">Najstarsze</option>
+        <option value="desc" selected="@(ViewBag.SortOrder == "desc")">Najnowsze</option>
+        <option value="asc" selected="@(ViewBag.SortOrder == "asc")">Najstarsze</option>
     </select>
 
-    <input type="number" name="pageSize" value="5" min="1" class="form-control" />
+    <input type="number" name="pageSize" value="@ViewBag.PageSize" min="1" class="form-control" />
 
     <button type="submit" class="btn btn-primary">
         Filtruj
@@ -43,19 +44,34 @@
             <th>Tytuł</th>
             <th>Status</th>
             <th>Data utworzenia</th>
+            <th></th>
         </tr>
     </thead>
     <tbody>
         @foreach (var ticket in Model)
         {
+            var statusClass = ticket.Status switch
+            {
+                "New" => "badge bg-primary",
+                "InProgress" => "badge bg-warning text-dark",
+                "Closed" => "badge bg-success",
+                _ => "badge bg-secondary"
+            };
+
             <tr>
                 <td>@ticket.Id</td>
 
                 <td>@ticket.Title</td>
 
-                <td>@ticket.Status</td>
+                <td><span class="@statusClass">@ticket.Status</span></td>
 
                 <td>@ticket.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+
+                <td>
+                    <a asp-action="Details" asp-route-id="@ticket.Id" class="btn btn-sm btn-outline-secondary">
+                        Szczegóły
+                    </a>
+                </td>
             </tr>
         }
     </tbody>

@@ -11,7 +11,11 @@ namespace UniDesk.UnitTests.Fakes
 {
     public class FakeTicketRepository
     {
-        public Ticket TicketInMemory { get; set; }
+        public Ticket TicketInMemory { get; set; } = new()
+        {
+            Title = string.Empty,
+            Description = string.Empty
+        };
 
         public bool WasUpdateCalled { get; private set; }
 

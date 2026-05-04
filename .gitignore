@@ -10,3 +10,5 @@ restore.diag.log
 *.suo
 *.rsuser
 *.log
+*.db
+src/UniDesk.Web/*.slnx
