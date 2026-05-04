@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/UniDesk.UnitTests/UniDesk.UnitTests.csproj" />
+    <Project Path="src/UniDesk.Web/UniDesk.Web.csproj" />
+    <Project Path="src/UniDesk.IntegrationTests/UniDesk.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
