@@ -8,4 +8,35 @@
 <p><strong>Status:</strong> @Model.Status</p>
 <p><strong>Data:</strong> @Model.CreatedAt</p>
 
+@if (TempData["StatusMessage"] != null)
+{
+    <p class="text-success">@TempData["StatusMessage"]</p>
+}
+
+@if (TempData["StatusError"] != null)
+{
+    <p class="text-danger">@TempData["StatusError"]</p>
+}
+
+@if (Model.Status == UniDesk.Web.Models.TicketStatus.Closed)
+{
+    <p>Zgloszenie jest zamkniete. Status nie moze byc zmieniony.</p>
+}
+else
+{
+    <form asp-action="UpdateStatus" asp-route-id="@Model.Id" method="post" class="mb-3">
+        @Html.AntiForgeryToken()
+
+        <label for="Status" class="form-label">Zmien status</label>
+        <div class="d-flex gap-2">
+            <select id="Status" name="Status" class="form-select" style="max-width: 220px;">
+                <option value="New" selected="@(Model.Status == UniDesk.Web.Models.TicketStatus.New)">New</option>
+                <option value="InProgress" selected="@(Model.Status == UniDesk.Web.Models.TicketStatus.InProgress)">InProgress</option>
+                <option value="Closed" selected="@(Model.Status == UniDesk.Web.Models.TicketStatus.Closed)">Closed</option>
+            </select>
+            <button type="submit" class="btn btn-primary">Zapisz status</button>
+        </div>
+    </form>
+}
+
 <a asp-action="Index" class="btn btn-secondary">Powrót</a>

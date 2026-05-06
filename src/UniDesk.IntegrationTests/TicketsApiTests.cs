@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -225,5 +226,49 @@ public class TicketsApiTests
         var fetched = await getResponse.Content.ReadFromJsonAsync<TicketReadDto>();
         Assert.NotNull(fetched);
         Assert.Equal(TicketStatus.Closed, fetched!.Status);
+    }
+
+    [Fact]
+    public async Task Mvc_update_status_changes_ticket_status()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        int ticketId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var ticket = new Ticket { Title = "MVC status", Description = "Desc", Status = TicketStatus.New };
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        var detailsResponse = await client.GetAsync($"/Tickets/Details/{ticketId}");
+        detailsResponse.EnsureSuccessStatusCode();
+
+        var detailsHtml = await detailsResponse.Content.ReadAsStringAsync();
+        var tokenMatch = Regex.Match(detailsHtml, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"");
+        Assert.True(tokenMatch.Success);
+
+        var updateResponse = await client.PostAsync($"/Tickets/UpdateStatus/{ticketId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = tokenMatch.Groups[1].Value,
+            ["Status"] = TicketStatus.InProgress.ToString()
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, updateResponse.StatusCode);
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var updated = await db.Tickets.FindAsync(ticketId);
+            Assert.NotNull(updated);
+            Assert.Equal(TicketStatus.InProgress, updated!.Status);
+        }
     }
 }

@@ -8,10 +8,12 @@ namespace UniDesk.Web.Controllers
     public class TicketsController : Controller
     {
         private readonly ITicketService _ticketService;
+        private readonly TicketService _domainTicketService;
 
-        public TicketsController(ITicketService ticketService)
+        public TicketsController(ITicketService ticketService, TicketService domainTicketService)
         {
             _ticketService = ticketService;
+            _domainTicketService = domainTicketService;
         }
 
         [HttpGet]
@@ -65,6 +67,37 @@ namespace UniDesk.Web.Controllers
             _ticketService.Add(ticket);
 
             return RedirectToAction("Index");
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public IActionResult UpdateStatus(int id, UpdateTicketStatusRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                TempData["StatusError"] = "Nieprawidlowy status.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            var ticket = _ticketService.GetById(id);
+
+            if (ticket == null)
+            {
+                return NotFound();
+            }
+
+            try
+            {
+                _domainTicketService.UpdateStatus(ticket, request.Status!.Value);
+                _ticketService.Update(ticket);
+                TempData["StatusMessage"] = "Status zaktualizowany.";
+            }
+            catch (InvalidOperationException ex)
+            {
+                TempData["StatusError"] = ex.Message;
+            }
+
+            return RedirectToAction(nameof(Details), new { id });
         }
     }
 }
