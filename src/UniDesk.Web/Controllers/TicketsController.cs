@@ -48,6 +48,7 @@ namespace UniDesk.Web.Controllers
         }
 
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public IActionResult Create(CreateTicketRequest request)
         {
             if (!ModelState.IsValid)

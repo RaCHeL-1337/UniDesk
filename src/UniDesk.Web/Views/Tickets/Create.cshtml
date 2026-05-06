@@ -1,4 +1,4 @@
-﻿@model UniDesk.Web.DTOs.CreateTicketRequest
+@model UniDesk.Web.DTOs.CreateTicketRequest
 
 @{
     ViewData["Title"] = "Nowe zgłoszenie";
@@ -7,6 +7,8 @@
 <h1>Nowe zgłoszenie</h1>
 
 <form method="post">
+    @Html.AntiForgeryToken()
+
     <div class="mb-3">
         <label asp-for="Title" class="form-label"></label>
         <input asp-for="Title" class="form-control" />

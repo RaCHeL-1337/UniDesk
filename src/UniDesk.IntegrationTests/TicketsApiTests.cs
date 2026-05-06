@@ -107,6 +107,73 @@ public class TicketsApiTests
     }
 
     [Fact]
+    public async Task Create_with_too_long_api_input_returns_bad_request()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var invalidRequest = new CreateTicketRequest
+        {
+            Title = new string('T', 101),
+            Description = new string('D', 501)
+        };
+
+        var response = await client.PostAsJsonAsync("/api/tickets", invalidRequest);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains(nameof(CreateTicketRequest.Title), problem!.Errors.Keys);
+        Assert.Contains(nameof(CreateTicketRequest.Description), problem.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task Mvc_create_form_contains_antiforgery_token_and_rejects_invalid_token()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var formResponse = await client.GetAsync("/Tickets/Create");
+        formResponse.EnsureSuccessStatusCode();
+
+        var formHtml = await formResponse.Content.ReadAsStringAsync();
+        Assert.Contains("__RequestVerificationToken", formHtml);
+
+        var invalidPost = await client.PostAsync("/Tickets/Create", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = "invalid-token",
+            ["Title"] = "CSRF check",
+            ["Description"] = "Invalid CSRF token should be rejected"
+        }));
+
+        Assert.Equal(HttpStatusCode.BadRequest, invalidPost.StatusCode);
+    }
+
+    [Fact]
+    public async Task App_adds_security_headers()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.GetAsync("/");
+
+        Assert.True(response.Headers.TryGetValues("X-Content-Type-Options", out var contentTypeOptions));
+        Assert.Contains("nosniff", contentTypeOptions);
+        Assert.True(response.Headers.TryGetValues("X-Frame-Options", out var frameOptions));
+        Assert.Contains("DENY", frameOptions);
+    }
+
+    [Fact]
     public async Task GetById_for_missing_ticket_returns_404_problem_details()
     {
         await using var factory = new UniDeskWebApplicationFactory();

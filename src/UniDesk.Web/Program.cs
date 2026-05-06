@@ -27,6 +27,18 @@ builder.Services.AddScoped<TicketService>();
 
 var app = builder.Build();
 
+app.Use(async (context, next) =>
+{
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers["X-Content-Type-Options"] = "nosniff";
+        context.Response.Headers["X-Frame-Options"] = "DENY";
+        return Task.CompletedTask;
+    });
+
+    await next(context);
+});
+
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
