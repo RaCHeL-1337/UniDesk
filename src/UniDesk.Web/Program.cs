@@ -1,3 +1,5 @@
+using UniDesk.Web.DTOs;
+using UniDesk.Web.Middleware;
 using UniDesk.Web.Services;
 using Microsoft.EntityFrameworkCore;
 using UniDesk.Web.Data;
@@ -22,8 +24,8 @@ builder.Services.AddDbContext<UniDeskDbContext>(options =>
            .EnableSensitiveDataLogging()
            .LogTo(Console.WriteLine, LogLevel.Information));
 
-builder.Services.AddScoped<ITicketService, DbTicketService>();
 builder.Services.AddScoped<TicketService>();
+builder.Services.AddScoped<ITicketService>(provider => provider.GetRequiredService<TicketService>());
 
 var app = builder.Build();
 
@@ -38,6 +40,8 @@ app.Use(async (context, next) =>
 
     await next(context);
 });
+
+app.UseMiddleware<EntityNotFoundExceptionMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -63,6 +67,38 @@ app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
 
+var ticketsV2 = app.MapGroup("/api/v2/tickets")
+    .WithTags("Tickets v2")
+    .WithOpenApi();
+
+ticketsV2.MapGet("/", GetTicketsV2);
+ticketsV2.MapPost("/", CreateTicketV2);
+ticketsV2.MapPut("/{id:int}", UpdateTicketV2);
+ticketsV2.MapDelete("/{id:int}", DeleteTicketV2);
+
 app.Run();
+
+static IResult GetTicketsV2(ITicketService ticketService)
+{
+    return Results.Ok(ticketService.GetAllForApi());
+}
+
+static IResult CreateTicketV2(CreateTicketRequest request, ITicketService ticketService)
+{
+    var created = ticketService.Create(request);
+    return Results.Created($"/api/v2/tickets/{created.Id}", created);
+}
+
+static IResult UpdateTicketV2(int id, CreateTicketRequest request, ITicketService ticketService)
+{
+    ticketService.Update(id, request);
+    return Results.NoContent();
+}
+
+static IResult DeleteTicketV2(int id, ITicketService ticketService)
+{
+    ticketService.Delete(id);
+    return Results.NoContent();
+}
 
 public partial class Program { }

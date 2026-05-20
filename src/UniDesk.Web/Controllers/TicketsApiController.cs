@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using UniDesk.Web.DTOs;
+using UniDesk.Web.Exceptions;
 using UniDesk.Web.Models;
 using UniDesk.Web.Services;
 
@@ -13,12 +14,10 @@ namespace UniDesk.Web.Controllers;
 public class TicketsApiController : ControllerBase
 {
     private readonly ITicketService _ticketService;
-    private readonly TicketService _domainTicketService;
 
-    public TicketsApiController(ITicketService ticketService, TicketService domainTicketService)
+    public TicketsApiController(ITicketService ticketService)
     {
         _ticketService = ticketService;
-        _domainTicketService = domainTicketService;
     }
 
     [HttpGet]
@@ -34,26 +33,27 @@ public class TicketsApiController : ControllerBase
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     public IActionResult GetById(int id)
     {
-        var ticket = _ticketService.GetById(id);
+        try
+        {
+            var ticket = _ticketService.GetById(id);
+            var dto = new TicketReadDto
+            {
+                Id = ticket.Id,
+                Title = ticket.Title,
+                Status = ticket.Status,
+                CreatedAt = ticket.CreatedAt,
+                UpdatedAt = ticket.UpdatedAt
+            };
 
-        if (ticket == null)
+            return Ok(dto);
+        }
+        catch (EntityNotFoundException)
         {
             return Problem(
                 statusCode: StatusCodes.Status404NotFound,
                 title: "Ticket not found",
                 detail: $"Ticket with id={id} was not found.");
         }
-
-        var dto = new TicketReadDto
-        {
-            Id = ticket.Id,
-            Title = ticket.Title,
-            Status = ticket.Status,
-            CreatedAt = ticket.CreatedAt,
-            UpdatedAt = ticket.UpdatedAt
-        };
-
-        return Ok(dto);
     }
 
     [HttpPost]
@@ -64,30 +64,15 @@ public class TicketsApiController : ControllerBase
     {
         try
         {
-            var ticket = new Ticket
-            {
-                Title = request.Title,
-                Description = request.Description
-            };
+            var dto = _ticketService.Create(request);
 
-            _ticketService.Add(ticket);
-
-            var dto = new TicketReadDto
-            {
-                Id = ticket.Id,
-                Title = ticket.Title,
-                Status = ticket.Status,
-                CreatedAt = ticket.CreatedAt,
-                UpdatedAt = ticket.UpdatedAt
-            };
-
-            return CreatedAtAction(nameof(GetById), new { id = ticket.Id }, dto);
+            return CreatedAtAction(nameof(GetById), new { id = dto.Id }, dto);
         }
         catch (DbUpdateException)
         {
             return Problem(
                 statusCode: StatusCodes.Status400BadRequest,
-                title: "Błąd zapisu do bazy danych");
+                title: "Blad zapisu do bazy danych");
         }
     }
 
@@ -100,28 +85,22 @@ public class TicketsApiController : ControllerBase
     {
         try
         {
-            var ticket = _ticketService.GetById(id);
-
-            if (ticket == null)
-            {
-                return Problem(
-                    statusCode: StatusCodes.Status404NotFound,
-                    title: "Ticket not found",
-                    detail: $"Ticket with id={id} was not found.");
-            }
-
-            ticket.Title = request.Title;
-            ticket.Description = request.Description;
-
-            _ticketService.Update(ticket);
+            _ticketService.Update(id, request);
 
             return NoContent();
+        }
+        catch (EntityNotFoundException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket not found",
+                detail: $"Ticket with id={id} was not found.");
         }
         catch (DbUpdateException)
         {
             return Problem(
                 statusCode: StatusCodes.Status400BadRequest,
-                title: "Błąd aktualizacji danych");
+                title: "Blad aktualizacji danych");
         }
     }
 
@@ -134,20 +113,16 @@ public class TicketsApiController : ControllerBase
     {
         try
         {
-            var ticket = _ticketService.GetById(id);
-
-            if (ticket == null)
-            {
-                return Problem(
-                    statusCode: StatusCodes.Status404NotFound,
-                    title: "Ticket not found",
-                    detail: $"Ticket with id={id} was not found.");
-            }
-
-            _domainTicketService.UpdateStatus(ticket, request.Status!.Value);
-            _ticketService.Update(ticket);
+            _ticketService.UpdateStatus(id, request.Status!.Value);
 
             return NoContent();
+        }
+        catch (EntityNotFoundException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket not found",
+                detail: $"Ticket with id={id} was not found.");
         }
         catch (InvalidOperationException ex)
         {
@@ -160,7 +135,7 @@ public class TicketsApiController : ControllerBase
         {
             return Problem(
                 statusCode: StatusCodes.Status400BadRequest,
-                title: "Błąd aktualizacji danych");
+                title: "Blad aktualizacji danych");
         }
     }
 }

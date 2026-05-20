@@ -1,6 +1,6 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using UniDesk.Web.DTOs;
-using UniDesk.Web.Models;
+using UniDesk.Web.Exceptions;
 using UniDesk.Web.Services;
 
 namespace UniDesk.Web.Controllers
@@ -8,12 +8,10 @@ namespace UniDesk.Web.Controllers
     public class TicketsController : Controller
     {
         private readonly ITicketService _ticketService;
-        private readonly TicketService _domainTicketService;
 
-        public TicketsController(ITicketService ticketService, TicketService domainTicketService)
+        public TicketsController(ITicketService ticketService)
         {
             _ticketService = ticketService;
-            _domainTicketService = domainTicketService;
         }
 
         [HttpGet]
@@ -33,14 +31,15 @@ namespace UniDesk.Web.Controllers
         [HttpGet]
         public IActionResult Details(int id)
         {
-            var ticket = _ticketService.GetById(id);
-
-            if (ticket == null)
+            try
+            {
+                var ticket = _ticketService.GetById(id);
+                return View(ticket);
+            }
+            catch (EntityNotFoundException)
             {
                 return NotFound();
             }
-
-            return View(ticket);
         }
 
         [HttpGet]
@@ -58,13 +57,7 @@ namespace UniDesk.Web.Controllers
                 return View(request);
             }
 
-            var ticket = new Ticket
-            {
-                Title = request.Title,
-                Description = request.Description
-            };
-
-            _ticketService.Add(ticket);
+            _ticketService.Create(request);
 
             return RedirectToAction("Index");
         }
@@ -79,18 +72,14 @@ namespace UniDesk.Web.Controllers
                 return RedirectToAction(nameof(Details), new { id });
             }
 
-            var ticket = _ticketService.GetById(id);
-
-            if (ticket == null)
-            {
-                return NotFound();
-            }
-
             try
             {
-                _domainTicketService.UpdateStatus(ticket, request.Status!.Value);
-                _ticketService.Update(ticket);
+                _ticketService.UpdateStatus(id, request.Status!.Value);
                 TempData["StatusMessage"] = "Status zaktualizowany.";
+            }
+            catch (EntityNotFoundException)
+            {
+                return NotFound();
             }
             catch (InvalidOperationException ex)
             {

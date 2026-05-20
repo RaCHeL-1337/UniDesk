@@ -271,4 +271,190 @@ public class TicketsApiTests
             Assert.Equal(TicketStatus.InProgress, updated!.Status);
         }
     }
+
+    [Fact]
+    public async Task MinimalApiV2_get_returns_ok_and_list_of_tickets()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            db.Tickets.Add(new Ticket { Title = "V2 ticket", Description = "Desc", Status = TicketStatus.New });
+            await db.SaveChangesAsync();
+        }
+
+        var response = await client.GetAsync("/api/v2/tickets");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var payload = await response.Content.ReadFromJsonAsync<List<TicketReadDto>>();
+        Assert.NotNull(payload);
+        Assert.Contains(payload!, t => t.Title == "V2 ticket");
+    }
+
+    [Fact]
+    public async Task MinimalApiV2_post_creates_ticket()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var request = new CreateTicketRequest
+        {
+            Title = "Created through v2",
+            Description = "Desc"
+        };
+
+        var response = await client.PostAsJsonAsync("/api/v2/tickets", request);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+
+        var created = await response.Content.ReadFromJsonAsync<TicketReadDto>();
+        Assert.NotNull(created);
+        Assert.True(created!.Id > 0);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+        var stored = await db.Tickets.FindAsync(created.Id);
+        Assert.NotNull(stored);
+        Assert.Equal(request.Title, stored!.Title);
+    }
+
+    [Fact]
+    public async Task MinimalApiV2_put_updates_ticket()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        int ticketId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var ticket = new Ticket { Title = "Before", Description = "Before desc", Status = TicketStatus.New };
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        var request = new CreateTicketRequest
+        {
+            Title = "After",
+            Description = "After desc"
+        };
+
+        var response = await client.PutAsJsonAsync($"/api/v2/tickets/{ticketId}", request);
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+        var updated = await verifyDb.Tickets.FindAsync(ticketId);
+        Assert.NotNull(updated);
+        Assert.Equal(request.Title, updated!.Title);
+        Assert.Equal(request.Description, updated.Description);
+    }
+
+    [Fact]
+    public async Task MinimalApiV2_delete_removes_ticket()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        int ticketId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var ticket = new Ticket { Title = "Delete me", Description = "Desc", Status = TicketStatus.New };
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        var response = await client.DeleteAsync($"/api/v2/tickets/{ticketId}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+        var deleted = await verifyDb.Tickets.FindAsync(ticketId);
+        Assert.Null(deleted);
+    }
+
+    [Fact]
+    public async Task MinimalApiV2_delete_missing_ticket_returns_problem_details()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.DeleteAsync("/api/v2/tickets/999999");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal(StatusCodes.Status404NotFound, problem!.Status);
+        Assert.Equal("Entity not found", problem.Title);
+    }
+
+    [Fact]
+    public async Task MinimalApiV2_put_missing_ticket_returns_problem_details()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var request = new CreateTicketRequest
+        {
+            Title = "Missing",
+            Description = "Missing"
+        };
+
+        var response = await client.PutAsJsonAsync("/api/v2/tickets/999999", request);
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal(StatusCodes.Status404NotFound, problem!.Status);
+        Assert.Equal("Entity not found", problem.Title);
+    }
+
+    [Fact]
+    public async Task MinimalApiV2_invalid_json_returns_problem_details()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        using var content = new StringContent("{title:\"Broken\"}", System.Text.Encoding.UTF8, "application/json");
+
+        var response = await client.PostAsync("/api/v2/tickets", content);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem!.Status);
+        Assert.Equal("Invalid request", problem.Title);
+    }
 }
