@@ -1,10 +1,13 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using UniDesk.Web.Data;
 using UniDesk.Web.DTOs;
 using UniDesk.Web.Exceptions;
 using UniDesk.Web.Services;
 
 namespace UniDesk.Web.Controllers
 {
+    [Authorize]
     public class TicketsController : Controller
     {
         private readonly ITicketService _ticketService;
@@ -23,6 +26,7 @@ namespace UniDesk.Web.Controllers
             ViewBag.Search = parameters.Search;
             ViewBag.Status = parameters.Status?.ToString();
             ViewBag.SortOrder = parameters.SortOrder;
+            ViewBag.Page = parameters.Page;
             ViewBag.PageSize = parameters.PageSize;
 
             return View(result.Items);
@@ -87,6 +91,23 @@ namespace UniDesk.Web.Controllers
             }
 
             return RedirectToAction(nameof(Details), new { id });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = AppRoles.Admin)]
+        [ValidateAntiForgeryToken]
+        public IActionResult Delete(int id)
+        {
+            try
+            {
+                _ticketService.Delete(id);
+                TempData["StatusMessage"] = "Zgloszenie usuniete.";
+                return RedirectToAction(nameof(Index));
+            }
+            catch (EntityNotFoundException)
+            {
+                return NotFound();
+            }
         }
     }
 }

@@ -1,9 +1,10 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using UniDesk.Web.Models;
 
 namespace UniDesk.Web.Data
 {
-    public class UniDeskDbContext : DbContext
+    public class UniDeskDbContext : IdentityDbContext<ApplicationUser>
     {
         public UniDeskDbContext(DbContextOptions<UniDeskDbContext> options)
             : base(options)

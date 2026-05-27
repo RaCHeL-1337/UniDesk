@@ -1,6 +1,8 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using UniDesk.Web.Data;
 using UniDesk.Web.DTOs;
 using UniDesk.Web.Exceptions;
 using UniDesk.Web.Models;
@@ -9,6 +11,7 @@ using UniDesk.Web.Services;
 namespace UniDesk.Web.Controllers;
 
 [ApiController]
+[Authorize]
 [Route("api/tickets")]
 [Tags("Tickets")]
 public class TicketsApiController : ControllerBase
@@ -136,6 +139,26 @@ public class TicketsApiController : ControllerBase
             return Problem(
                 statusCode: StatusCodes.Status400BadRequest,
                 title: "Blad aktualizacji danych");
+        }
+    }
+
+    [HttpDelete("{id}")]
+    [Authorize(Roles = AppRoles.Admin)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public IActionResult Delete(int id)
+    {
+        try
+        {
+            _ticketService.Delete(id);
+            return NoContent();
+        }
+        catch (EntityNotFoundException)
+        {
+            return Problem(
+                statusCode: StatusCodes.Status404NotFound,
+                title: "Ticket not found",
+                detail: $"Ticket with id={id} was not found.");
         }
     }
 }

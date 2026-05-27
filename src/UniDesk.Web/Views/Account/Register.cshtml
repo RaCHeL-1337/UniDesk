@@ -1,0 +1,47 @@
+@model RegisterViewModel
+
+@{
+    ViewData["Title"] = "Register";
+}
+
+<div class="unidesk-page">
+    <h1>Register</h1>
+
+    <form asp-action="Register" method="post" class="plain-panel plain-form">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+        <div class="plain-form-field">
+            <label asp-for="Email"></label>
+            <input asp-for="Email" class="form-control" />
+            <span asp-validation-for="Email" class="text-danger"></span>
+        </div>
+
+        <div class="plain-form-field">
+            <label asp-for="OrganizationName">Organization name</label>
+            <input asp-for="OrganizationName" class="form-control" />
+            <span asp-validation-for="OrganizationName" class="text-danger"></span>
+        </div>
+
+        <div class="plain-form-field">
+            <label asp-for="Password"></label>
+            <input asp-for="Password" class="form-control" />
+            <span asp-validation-for="Password" class="text-danger"></span>
+        </div>
+
+        <div class="plain-form-field">
+            <label asp-for="ConfirmPassword">Confirm password</label>
+            <input asp-for="ConfirmPassword" class="form-control" />
+            <span asp-validation-for="ConfirmPassword" class="text-danger"></span>
+        </div>
+
+        <div class="plain-actions">
+            <button type="submit" class="plain-button">Register</button>
+            <a asp-action="Login" class="plain-link">Login</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

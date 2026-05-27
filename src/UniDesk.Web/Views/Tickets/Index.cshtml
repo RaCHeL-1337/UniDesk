@@ -2,6 +2,13 @@
 
 @{
     ViewData["Title"] = "Lista zgloszen";
+    int page = ViewBag.Page ?? 1;
+    int pageSize = ViewBag.PageSize ?? 5;
+    int totalCount = ViewBag.TotalCount ?? 0;
+    int totalPages = Math.Max(1, (int)Math.Ceiling(totalCount / (double)pageSize));
+    string? search = ViewBag.Search as string;
+    string? status = ViewBag.Status as string;
+    string? sortOrder = ViewBag.SortOrder as string;
 }
 
 <style>
@@ -100,33 +107,35 @@
     <form method="get" class="tickets-filter">
         <div>
             <label for="search">Szukaj</label>
-            <input id="search" type="text" name="search" value="@ViewBag.Search" class="form-control" placeholder="Szukaj po tytule" />
+            <input id="search" type="text" name="search" value="@search" class="form-control" placeholder="Szukaj po tytule" />
         </div>
 
         <div>
             <label for="status">Status</label>
             <select id="status" name="status" class="form-select">
                 <option value="">Wszystkie</option>
-                <option value="New" selected="@(ViewBag.Status == "New")">New</option>
-                <option value="InProgress" selected="@(ViewBag.Status == "InProgress")">InProgress</option>
-                <option value="Closed" selected="@(ViewBag.Status == "Closed")">Closed</option>
+                <option value="New" selected="@(status == "New")">New</option>
+                <option value="InProgress" selected="@(status == "InProgress")">InProgress</option>
+                <option value="Closed" selected="@(status == "Closed")">Closed</option>
             </select>
         </div>
 
         <div>
             <label for="sortOrder">Sort</label>
             <select id="sortOrder" name="sortOrder" class="form-select">
-                <option value="desc" selected="@(ViewBag.SortOrder == "desc")">Najnowsze</option>
-                <option value="asc" selected="@(ViewBag.SortOrder == "asc")">Najstarsze</option>
+                <option value="desc" selected="@(sortOrder == "desc")">Najnowsze</option>
+                <option value="asc" selected="@(sortOrder == "asc")">Najstarsze</option>
             </select>
         </div>
 
         <div>
             <label for="pageSize">Na stronie</label>
-            <input id="pageSize" type="number" name="pageSize" value="@ViewBag.PageSize" min="1" class="form-control" />
+            <input id="pageSize" type="number" name="pageSize" value="@pageSize" min="1" class="form-control" />
         </div>
 
+        <input type="hidden" name="page" value="1" />
         <button type="submit" class="plain-button">Filtruj</button>
+        <a asp-action="Index" class="plain-button">Wyczysc</a>
     </form>
 
     <table class="table table-sm table-bordered align-middle">
@@ -142,10 +151,18 @@
         <tbody>
             @foreach (var ticket in Model)
             {
+                var statusClass = ticket.Status switch
+                {
+                    "New" => "ticket-status-new",
+                    "InProgress" => "ticket-status-progress",
+                    "Closed" => "ticket-status-closed",
+                    _ => "ticket-status-unknown"
+                };
+
                 <tr>
                     <td>@ticket.Id</td>
                     <td>@ticket.Title</td>
-                    <td>@ticket.Status</td>
+                    <td><span class="ticket-status @statusClass">@ticket.Status</span></td>
                     <td>@ticket.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
                     <td><a asp-action="Details" asp-route-id="@ticket.Id">Szczegoly</a></td>
                 </tr>
@@ -155,8 +172,21 @@
 
     <div class="tickets-pagination">
         Strony:
-        <a asp-action="Index" asp-route-page="1">1</a>
-        <a asp-action="Index" asp-route-page="2">2</a>
-        <a asp-action="Index" asp-route-page="3">3</a>
+        @for (int i = 1; i <= totalPages; i++)
+        {
+            if (i == page)
+            {
+                <strong>@i</strong>
+            }
+            else
+            {
+                <a asp-action="Index"
+                   asp-route-page="@i"
+                   asp-route-pageSize="@pageSize"
+                   asp-route-search="@search"
+                   asp-route-status="@status"
+                   asp-route-sortOrder="@sortOrder">@i</a>
+            }
+        }
     </div>
 </div>

@@ -457,4 +457,276 @@ public class TicketsApiTests
         Assert.Equal(StatusCodes.Status400BadRequest, problem!.Status);
         Assert.Equal("Invalid request", problem.Title);
     }
+
+    [Fact]
+    public async Task Anonymous_mvc_tickets_redirects_to_login()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(useTestAuthentication: false);
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.GetAsync("/Tickets");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.NotNull(response.Headers.Location);
+        Assert.Contains("/Account/Login", response.Headers.Location!.ToString());
+    }
+
+    [Fact]
+    public async Task Anonymous_controller_api_returns_unauthorized()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(useTestAuthentication: false);
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.GetAsync("/api/tickets");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Anonymous_controller_api_delete_returns_unauthorized()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(useTestAuthentication: false);
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.DeleteAsync("/api/tickets/1");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Authenticated_user_without_admin_role_cannot_delete_ticket()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(testRoles: Array.Empty<string>());
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        int ticketId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var ticket = new Ticket { Title = "Role protected", Description = "Desc", Status = TicketStatus.New };
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        var response = await client.DeleteAsync($"/api/tickets/{ticketId}");
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+        Assert.NotNull(await verifyDb.Tickets.FindAsync(ticketId));
+    }
+
+    [Fact]
+    public async Task Admin_user_can_delete_ticket_through_controller_api()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        int ticketId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var ticket = new Ticket { Title = "Admin delete", Description = "Desc", Status = TicketStatus.New };
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        var response = await client.DeleteAsync($"/api/tickets/{ticketId}");
+
+        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+        Assert.Null(await verifyDb.Tickets.FindAsync(ticketId));
+    }
+
+    [Fact]
+    public async Task Non_admin_user_does_not_see_delete_button_in_ticket_details()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(testRoles: Array.Empty<string>());
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        int ticketId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var ticket = new Ticket { Title = "UI delete", Description = "Desc", Status = TicketStatus.New };
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        var response = await client.GetAsync($"/Tickets/Details/{ticketId}");
+        response.EnsureSuccessStatusCode();
+
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Usun zgloszenie", html);
+    }
+
+    [Fact]
+    public async Task Admin_user_sees_delete_button_in_ticket_details()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        int ticketId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var ticket = new Ticket { Title = "Admin UI delete", Description = "Desc", Status = TicketStatus.New };
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        var response = await client.GetAsync($"/Tickets/Details/{ticketId}");
+        response.EnsureSuccessStatusCode();
+
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Usun zgloszenie", html);
+    }
+
+    [Fact]
+    public async Task Register_rejects_password_without_special_character()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(useTestAuthentication: false);
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var registerPageResponse = await client.GetAsync("/Account/Register");
+        registerPageResponse.EnsureSuccessStatusCode();
+
+        var registerHtml = await registerPageResponse.Content.ReadAsStringAsync();
+        var tokenMatch = Regex.Match(registerHtml, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"");
+        Assert.True(tokenMatch.Success);
+
+        var registerResponse = await client.PostAsync("/Account/Register", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = tokenMatch.Groups[1].Value,
+            ["Email"] = "weak-password@unidesk.local",
+            ["OrganizationName"] = "Weak Password Org",
+            ["Password"] = "Admin123",
+            ["ConfirmPassword"] = "Admin123"
+        }));
+
+        Assert.Equal(HttpStatusCode.OK, registerResponse.StatusCode);
+        Assert.False(registerResponse.Headers.TryGetValues("Set-Cookie", out var cookies)
+            && cookies.Any(cookie => cookie.Contains(".AspNetCore.Identity.Application")));
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+        Assert.False(db.Users.Any(user => user.Email == "weak-password@unidesk.local"));
+    }
+
+    [Fact]
+    public async Task Login_sets_identity_cookie_and_allows_tickets_view()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(useTestAuthentication: false);
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var loginPageResponse = await client.GetAsync("/Account/Login");
+        loginPageResponse.EnsureSuccessStatusCode();
+
+        var loginHtml = await loginPageResponse.Content.ReadAsStringAsync();
+        var tokenMatch = Regex.Match(loginHtml, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"");
+        Assert.True(tokenMatch.Success);
+
+        var loginResponse = await client.PostAsync("/Account/Login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = tokenMatch.Groups[1].Value,
+            ["Email"] = "admin@unidesk.local",
+            ["Password"] = "Admin123!",
+            ["RememberMe"] = "false"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, loginResponse.StatusCode);
+        Assert.True(loginResponse.Headers.TryGetValues("Set-Cookie", out var cookies));
+        Assert.Contains(cookies, cookie => cookie.Contains(".AspNetCore.Identity.Application"));
+
+        var ticketsResponse = await client.GetAsync("/Tickets");
+        Assert.Equal(HttpStatusCode.OK, ticketsResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Identity_api_register_rejects_password_without_special_character()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(useTestAuthentication: false);
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.PostAsJsonAsync("/register", new
+        {
+            email = "api-weak-password@unidesk.local",
+            password = "Admin123"
+        });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem!.Status);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+        Assert.False(db.Users.Any(user => user.Email == "api-weak-password@unidesk.local"));
+    }
+
+    [Fact]
+    public async Task Identity_api_login_with_cookies_sets_identity_cookie()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(useTestAuthentication: false);
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var response = await client.PostAsJsonAsync("/login?useCookies=true", new
+        {
+            email = "admin@unidesk.local",
+            password = "Admin123!"
+        });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.TryGetValues("Set-Cookie", out var cookies));
+        Assert.Contains(cookies, cookie => cookie.Contains(".AspNetCore.Identity.Application"));
+    }
 }

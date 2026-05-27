@@ -1,4 +1,5 @@
 using System.Linq;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -10,7 +11,15 @@ namespace UniDesk.IntegrationTests;
 
 public sealed class UniDeskWebApplicationFactory : WebApplicationFactory<Program>
 {
+    private readonly bool _useTestAuthentication;
+    private readonly string[] _testRoles;
     private SqliteConnection? _connection;
+
+    public UniDeskWebApplicationFactory(bool useTestAuthentication = true, string[]? testRoles = null)
+    {
+        _useTestAuthentication = useTestAuthentication;
+        _testRoles = testRoles ?? new[] { AppRoles.Admin };
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -29,6 +38,19 @@ public sealed class UniDeskWebApplicationFactory : WebApplicationFactory<Program
 
             services.AddDbContext<UniDeskDbContext>(options => options.UseSqlite(_connection));
 
+            if (_useTestAuthentication)
+            {
+                services
+                    .AddAuthentication(options =>
+                    {
+                        options.DefaultAuthenticateScheme = TestAuthHandler.AuthenticationScheme;
+                        options.DefaultChallengeScheme = TestAuthHandler.AuthenticationScheme;
+                    })
+                    .AddScheme<TestAuthOptions, TestAuthHandler>(
+                        TestAuthHandler.AuthenticationScheme,
+                        options => options.Roles = _testRoles);
+            }
+
             using var provider = services.BuildServiceProvider();
             using var scope = provider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
@@ -46,4 +68,3 @@ public sealed class UniDeskWebApplicationFactory : WebApplicationFactory<Program
         }
     }
 }
-

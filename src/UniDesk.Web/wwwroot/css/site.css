@@ -20,3 +20,158 @@ html {
 body {
   margin-bottom: 60px;
 }
+
+.unidesk-page h1 {
+  margin-bottom: 6px;
+}
+
+.plain-panel {
+  background: #fff;
+  border: 1px solid #222;
+  padding: 10px;
+}
+
+.plain-form {
+  max-width: 520px;
+}
+
+.plain-form-field {
+  margin-bottom: 12px;
+}
+
+.plain-form label,
+.plain-panel label {
+  color: #222;
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.plain-form .form-control,
+.plain-form .form-select,
+.plain-panel .form-control,
+.plain-panel .form-select {
+  border: 1px solid #222;
+  border-radius: 0;
+  box-shadow: none;
+  font-size: 15px;
+  min-height: 36px;
+  padding: 4px 8px;
+}
+
+.plain-check {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.plain-check .form-check-input {
+  border: 1px solid #222;
+  border-radius: 0;
+  height: 18px;
+  margin: 0;
+  width: 18px;
+}
+
+.plain-check label {
+  font-weight: 400;
+  margin: 0;
+}
+
+.plain-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.plain-button,
+.plain-button:visited {
+  background: #fff;
+  border: 1px solid #111;
+  border-radius: 0;
+  color: #111;
+  display: inline-block;
+  padding: 7px 14px;
+  text-decoration: none;
+}
+
+.plain-button:hover,
+.plain-button:focus {
+  background: #f2f2f2;
+  color: #111;
+}
+
+.plain-link {
+  color: #06f;
+  text-decoration: underline;
+}
+
+.plain-muted {
+  color: #666;
+}
+
+.ticket-detail-grid {
+  border-collapse: collapse;
+  margin: 18px 0;
+  max-width: 760px;
+  width: 100%;
+}
+
+.ticket-detail-grid th,
+.ticket-detail-grid td {
+  border: 1px solid #d8dde3;
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.ticket-detail-grid th {
+  background: #f8f9fa;
+  width: 190px;
+}
+
+.ticket-status-form {
+  align-items: end;
+  display: inline-grid;
+  gap: 10px;
+  grid-template-columns: 180px auto;
+  margin-bottom: 16px;
+}
+
+.ticket-status {
+  border: 1px solid #555;
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  min-width: 72px;
+  padding: 3px 8px;
+  text-align: center;
+}
+
+.ticket-status-new {
+  background: #dbeafe;
+  border-color: #2563eb;
+  color: #0f3f8f;
+}
+
+.ticket-status-progress {
+  background: #fff3cd;
+  border-color: #b58100;
+  color: #5c3d00;
+}
+
+.ticket-status-closed {
+  background: #d1e7dd;
+  border-color: #198754;
+  color: #0f5132;
+}
+
+.ticket-status-unknown {
+  background: #eeeeee;
+  border-color: #777;
+  color: #333;
+}

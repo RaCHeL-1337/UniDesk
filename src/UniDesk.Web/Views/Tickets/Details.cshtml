@@ -1,12 +1,43 @@
-﻿@model UniDesk.Web.Models.Ticket
+@model UniDesk.Web.Models.Ticket
+@using UniDesk.Web.Data
 
-<h1>Szczegóły zgłoszenia</h1>
+@{
+    var statusClass = Model.Status switch
+    {
+        UniDesk.Web.Models.TicketStatus.New => "ticket-status-new",
+        UniDesk.Web.Models.TicketStatus.InProgress => "ticket-status-progress",
+        UniDesk.Web.Models.TicketStatus.Closed => "ticket-status-closed",
+        _ => "ticket-status-unknown"
+    };
+}
 
-<p><strong>Id:</strong> @Model.Id</p>
-<p><strong>Tytuł:</strong> @Model.Title</p>
-<p><strong>Opis:</strong> @Model.Description</p>
-<p><strong>Status:</strong> @Model.Status</p>
-<p><strong>Data:</strong> @Model.CreatedAt</p>
+<div class="unidesk-page">
+    <h1>Szczegoly zgloszenia</h1>
+
+    <table class="ticket-detail-grid">
+        <tbody>
+            <tr>
+                <th>Id</th>
+                <td>@Model.Id</td>
+            </tr>
+            <tr>
+                <th>Tytul</th>
+                <td>@Model.Title</td>
+            </tr>
+            <tr>
+                <th>Opis</th>
+                <td>@Model.Description</td>
+            </tr>
+            <tr>
+                <th>Status</th>
+                <td><span class="ticket-status @statusClass">@Model.Status</span></td>
+            </tr>
+            <tr>
+                <th>Data</th>
+                <td>@Model.CreatedAt</td>
+            </tr>
+        </tbody>
+    </table>
 
 @if (TempData["StatusMessage"] != null)
 {
@@ -24,19 +55,31 @@
 }
 else
 {
-    <form asp-action="UpdateStatus" asp-route-id="@Model.Id" method="post" class="mb-3">
+    <form asp-action="UpdateStatus" asp-route-id="@Model.Id" method="post" class="plain-panel ticket-status-form">
         @Html.AntiForgeryToken()
 
-        <label for="Status" class="form-label">Zmien status</label>
-        <div class="d-flex gap-2">
-            <select id="Status" name="Status" class="form-select" style="max-width: 220px;">
+        <div>
+            <label for="Status">Zmien status</label>
+            <select id="Status" name="Status" class="form-select">
                 <option value="New" selected="@(Model.Status == UniDesk.Web.Models.TicketStatus.New)">New</option>
                 <option value="InProgress" selected="@(Model.Status == UniDesk.Web.Models.TicketStatus.InProgress)">InProgress</option>
                 <option value="Closed" selected="@(Model.Status == UniDesk.Web.Models.TicketStatus.Closed)">Closed</option>
             </select>
-            <button type="submit" class="btn btn-primary">Zapisz status</button>
         </div>
+
+        <button type="submit" class="plain-button">Zapisz status</button>
     </form>
 }
 
-<a asp-action="Index" class="btn btn-secondary">Powrót</a>
+<div class="plain-actions">
+    <a asp-action="Index" class="plain-button">Powrot</a>
+
+    @if (User.IsInRole(AppRoles.Admin))
+    {
+        <form asp-action="Delete" asp-route-id="@Model.Id" method="post">
+            @Html.AntiForgeryToken()
+            <button type="submit" class="plain-button">Usun zgloszenie</button>
+        </form>
+    }
+</div>
+</div>
