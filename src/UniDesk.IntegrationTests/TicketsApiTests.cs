@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -728,5 +729,51 @@ public class TicketsApiTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.True(response.Headers.TryGetValues("Set-Cookie", out var cookies));
         Assert.Contains(cookies, cookie => cookie.Contains(".AspNetCore.Identity.Application"));
+    }
+
+    [Fact]
+    public async Task Health_endpoints_return_healthy_without_authentication()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(useTestAuthentication: false);
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var liveResponse = await client.GetAsync("/health/live");
+        var readyResponse = await client.GetAsync("/health/ready");
+
+        Assert.Equal(HttpStatusCode.OK, liveResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, readyResponse.StatusCode);
+        Assert.Equal("Healthy", await liveResponse.Content.ReadAsStringAsync());
+
+        using var readyJson = JsonDocument.Parse(await readyResponse.Content.ReadAsStringAsync());
+        Assert.Equal("Healthy", readyJson.RootElement.GetProperty("status").GetString());
+        Assert.True(readyJson.RootElement.TryGetProperty("checks", out var checks));
+        Assert.Contains(checks.EnumerateArray(), check =>
+            check.GetProperty("name").GetString() == "sqlite"
+            && check.GetProperty("status").GetString() == "Healthy");
+    }
+
+    [Fact]
+    public async Task Correlation_id_is_returned_for_each_request()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(useTestAuthentication: false);
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        const string correlationId = "test-correlation-id";
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/health/live");
+        request.Headers.Add("X-Correlation-ID", correlationId);
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.TryGetValues("X-Correlation-ID", out var values));
+        Assert.Contains(correlationId, values);
     }
 }

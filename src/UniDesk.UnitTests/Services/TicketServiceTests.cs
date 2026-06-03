@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 using UniDesk.Web.Data;
 using UniDesk.Web.DTOs;
 using UniDesk.Web.Models;
@@ -63,7 +64,7 @@ namespace UniDesk.UnitTests.Services
             var db = new UniDeskDbContext(options);
             db.Database.EnsureCreated();
 
-            return new TicketService(db);
+            return new TicketService(db, NullLogger<TicketService>.Instance);
         }
     }
 }

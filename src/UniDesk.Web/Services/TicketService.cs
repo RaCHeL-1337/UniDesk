@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
 using UniDesk.Web.Data;
 using UniDesk.Web.DTOs;
@@ -8,15 +9,20 @@ namespace UniDesk.Web.Services
 {
     public class TicketService : ITicketService
     {
-        private readonly UniDeskDbContext _context;
+        private static readonly TimeSpan SlowDataOperationThreshold = TimeSpan.FromMilliseconds(100);
 
-        public TicketService(UniDeskDbContext context)
+        private readonly UniDeskDbContext _context;
+        private readonly ILogger<TicketService> _logger;
+
+        public TicketService(UniDeskDbContext context, ILogger<TicketService> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         public PagedResult<TicketListDto> GetAll(TicketQueryParameters parameters)
         {
+            var stopwatch = Stopwatch.StartNew();
             IQueryable<Ticket> query = _context.Tickets.AsNoTracking();
 
             if (parameters.Status.HasValue)
@@ -49,6 +55,20 @@ namespace UniDesk.Web.Services
                 })
                 .ToList();
 
+            stopwatch.Stop();
+            LogSlowDataOperation(
+                "TicketsListQuery",
+                stopwatch.Elapsed,
+                new Dictionary<string, object?>
+                {
+                    ["Search"] = parameters.Search,
+                    ["Status"] = parameters.Status,
+                    ["SortOrder"] = parameters.SortOrder,
+                    ["Page"] = parameters.Page,
+                    ["PageSize"] = parameters.PageSize,
+                    ["TotalCount"] = totalCount
+                });
+
             return new PagedResult<TicketListDto>
             {
                 Items = items,
@@ -73,6 +93,7 @@ namespace UniDesk.Web.Services
 
         public TicketReadDto Create(CreateTicketRequest request)
         {
+            var stopwatch = Stopwatch.StartNew();
             var ticket = new Ticket
             {
                 Title = request.Title,
@@ -81,6 +102,25 @@ namespace UniDesk.Web.Services
 
             _context.Tickets.Add(ticket);
             _context.SaveChanges();
+            stopwatch.Stop();
+
+            _logger.LogInformation(
+                "Ticket created {TicketId} {TicketTitle} {TicketStatus} {TicketCreatedAt} {ElapsedMilliseconds}",
+                ticket.Id,
+                ticket.Title,
+                ticket.Status,
+                ticket.CreatedAt,
+                stopwatch.Elapsed.TotalMilliseconds);
+
+            LogSlowDataOperation(
+                "TicketCreate",
+                stopwatch.Elapsed,
+                new Dictionary<string, object?>
+                {
+                    ["TicketId"] = ticket.Id,
+                    ["TicketTitle"] = ticket.Title,
+                    ["TicketStatus"] = ticket.Status
+                });
 
             return ToReadDto(ticket);
         }
@@ -128,6 +168,23 @@ namespace UniDesk.Web.Services
                 CreatedAt = ticket.CreatedAt,
                 UpdatedAt = ticket.UpdatedAt
             };
+        }
+
+        private void LogSlowDataOperation(
+            string operationName,
+            TimeSpan elapsed,
+            IReadOnlyDictionary<string, object?> details)
+        {
+            if (elapsed < SlowDataOperationThreshold)
+            {
+                return;
+            }
+
+            _logger.LogWarning(
+                "Slow data operation {OperationName} took {ElapsedMilliseconds} ms with {@OperationDetails}",
+                operationName,
+                elapsed.TotalMilliseconds,
+                details);
         }
     }
 }

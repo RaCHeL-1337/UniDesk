@@ -1,7 +1,14 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Serilog;
+using Serilog.Events;
+using Serilog.Formatting.Json;
 using UniDesk.Web.DTOs;
+using UniDesk.Web.Health;
+using UniDesk.Web.Logging;
 using UniDesk.Web.Middleware;
 using UniDesk.Web.Models;
 using UniDesk.Web.Services;
@@ -9,6 +16,28 @@ using Microsoft.EntityFrameworkCore;
 using UniDesk.Web.Data;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Host.UseSerilog((context, _, loggerConfiguration) =>
+{
+    string logPath = Path.Combine(
+        context.HostingEnvironment.ContentRootPath,
+        "logs",
+        "unidesk-.json");
+
+    loggerConfiguration
+        .MinimumLevel.Information()
+        .MinimumLevel.Override("Microsoft.AspNetCore", LogEventLevel.Warning)
+        .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Information)
+        .Enrich.FromLogContext()
+        .Enrich.WithProperty("Environment", context.HostingEnvironment.EnvironmentName)
+        .Enrich.WithProperty("MachineName", Environment.MachineName)
+        .Enrich.With(new ThreadIdEnricher())
+        .WriteTo.Console()
+        .WriteTo.File(
+            new JsonFormatter(renderMessage: true),
+            logPath,
+            rollingInterval: RollingInterval.Day);
+});
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
@@ -24,9 +53,11 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddProblemDetails();
 
 builder.Services.AddDbContext<UniDeskDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection"))
-           .EnableSensitiveDataLogging()
-           .LogTo(Console.WriteLine, LogLevel.Information));
+    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+builder.Services.AddHealthChecks()
+    .AddCheck("self", () => HealthCheckResult.Healthy(), tags: new[] { "live" })
+    .AddCheck<SqliteDatabaseHealthCheck>("sqlite", tags: new[] { "ready" });
 
 builder.Services
     .AddAuthentication(options =>
@@ -96,6 +127,8 @@ builder.Services.AddScoped<ITicketService>(provider => provider.GetRequiredServi
 
 var app = builder.Build();
 
+app.Lifetime.ApplicationStopped.Register(Log.CloseAndFlush);
+
 await IdentitySeedData.EnsureSeedUserAsync(app.Services, app.Configuration);
 
 app.Use(async (context, next) =>
@@ -110,7 +143,9 @@ app.Use(async (context, next) =>
     await next(context);
 });
 
+app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<EntityNotFoundExceptionMiddleware>();
+app.UseMiddleware<GlobalExceptionLoggingMiddleware>();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -130,6 +165,8 @@ app.UseStaticFiles();
 
 app.UseRouting();
 
+app.UseSerilogRequestLogging();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -139,6 +176,17 @@ app.MapControllerRoute(
 
 app.MapIdentityApi<ApplicationUser>()
     .AllowAnonymous();
+
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("live")
+}).AllowAnonymous();
+
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready"),
+    ResponseWriter = HealthCheckResponseWriter.WriteJsonAsync
+}).AllowAnonymous();
 
 var ticketsV2 = app.MapGroup("/api/v2/tickets")
     .WithTags("Tickets v2")
