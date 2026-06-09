@@ -1,15 +1,22 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using UniDesk.Web.Models;
+using UniDesk.Web.Options;
 
 namespace UniDesk.Web.Data;
 
 public static class IdentitySeedData
 {
-    public static async Task EnsureSeedUserAsync(IServiceProvider services, IConfiguration configuration)
+    public static async Task EnsureSeedUserAsync(IServiceProvider services)
     {
         using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+        var seedOptions = scope.ServiceProvider.GetRequiredService<IOptions<SeedDataOptions>>().Value;
         var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+        await db.Database.MigrateAsync();
 
         foreach (var role in AppRoles.All)
         {
@@ -25,9 +32,9 @@ public static class IdentitySeedData
             }
         }
 
-        var email = configuration["Identity:AdminEmail"] ?? configuration["Identity:SeedEmail"] ?? "admin@unidesk.local";
-        var password = configuration["Identity:AdminPassword"] ?? configuration["Identity:SeedPassword"] ?? "Admin123!";
-        var organizationName = configuration["Identity:AdminOrganizationName"] ?? "UniDesk Lab";
+        var email = seedOptions.AdminEmail;
+        var password = seedOptions.AdminPassword;
+        var organizationName = seedOptions.AdminOrganizationName;
 
         var admin = await userManager.FindByEmailAsync(email);
         if (admin == null)
@@ -64,6 +71,37 @@ public static class IdentitySeedData
             {
                 throw new InvalidOperationException($"Could not assign Admin role to default user: {FormatErrors(addToRoleResult)}");
             }
+        }
+
+        if (!db.Tickets.Any() && seedOptions.Tickets.Count > 0)
+        {
+            foreach (var seedTicket in seedOptions.Tickets)
+            {
+                var ticket = new Ticket
+                {
+                    Title = seedTicket.Title,
+                    Description = seedTicket.Description,
+                    CreatedByUserId = admin.Id,
+                    CreatedByEmail = admin.Email ?? email,
+                    Status = Enum.TryParse<TicketStatus>(seedTicket.Status, out var status)
+                        ? status
+                        : TicketStatus.New
+                };
+
+                foreach (var message in seedTicket.Comments.Where(comment => !string.IsNullOrWhiteSpace(comment)))
+                {
+                    ticket.Comments.Add(new TicketComment
+                    {
+                        AuthorId = admin.Id,
+                        AuthorEmail = admin.Email ?? email,
+                        Message = message
+                    });
+                }
+
+                db.Tickets.Add(ticket);
+            }
+
+            db.SaveChanges();
         }
     }
 

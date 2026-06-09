@@ -11,6 +11,8 @@ restore.diag.log
 *.rsuser
 *.log
 *.db
+*.db-shm
+*.db-wal
 logs/
 src/UniDesk.Web/logs/
 src/UniDesk.Web/*.slnx

@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using UniDesk.Web.Authorization;
 using UniDesk.Web.Data;
 using UniDesk.Web.DTOs;
 using UniDesk.Web.Exceptions;
@@ -10,11 +12,17 @@ namespace UniDesk.Web.Controllers
     [Authorize]
     public class TicketsController : Controller
     {
+        private static readonly TicketDiscussionRequirement DiscussionRequirement = new();
+
+        private readonly IAuthorizationService _authorizationService;
         private readonly ITicketService _ticketService;
 
-        public TicketsController(ITicketService ticketService)
+        public TicketsController(
+            ITicketService ticketService,
+            IAuthorizationService authorizationService)
         {
             _ticketService = ticketService;
+            _authorizationService = authorizationService;
         }
 
         [HttpGet]
@@ -33,11 +41,23 @@ namespace UniDesk.Web.Controllers
         }
 
         [HttpGet]
-        public IActionResult Details(int id)
+        public async Task<IActionResult> Details(int id)
         {
             try
             {
-                var ticket = _ticketService.GetById(id);
+                var ticket = _ticketService.GetDetails(id);
+                var authorization = await _authorizationService.AuthorizeAsync(
+                    User,
+                    ticket,
+                    DiscussionRequirement);
+
+                ticket.CanParticipateInDiscussion = authorization.Succeeded;
+                ticket.CanManageTicket = authorization.Succeeded;
+                if (!authorization.Succeeded)
+                {
+                    ticket.Comments = Array.Empty<TicketCommentDto>();
+                }
+
                 return View(ticket);
             }
             catch (EntityNotFoundException)
@@ -61,14 +81,14 @@ namespace UniDesk.Web.Controllers
                 return View(request);
             }
 
-            _ticketService.Create(request);
+            _ticketService.Create(request, GetCurrentUserId(), GetCurrentUserEmail());
 
             return RedirectToAction("Index");
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult UpdateStatus(int id, UpdateTicketStatusRequest request)
+        public async Task<IActionResult> UpdateStatus(int id, UpdateTicketStatusRequest request)
         {
             if (!ModelState.IsValid)
             {
@@ -78,6 +98,17 @@ namespace UniDesk.Web.Controllers
 
             try
             {
+                var ticket = _ticketService.GetDetails(id);
+                var authorization = await _authorizationService.AuthorizeAsync(
+                    User,
+                    ticket,
+                    DiscussionRequirement);
+
+                if (!authorization.Succeeded)
+                {
+                    return Forbid();
+                }
+
                 _ticketService.UpdateStatus(id, request.Status!.Value);
                 TempData["StatusMessage"] = "Status zaktualizowany.";
             }
@@ -88,6 +119,40 @@ namespace UniDesk.Web.Controllers
             catch (InvalidOperationException ex)
             {
                 TempData["StatusError"] = ex.Message;
+            }
+
+            return RedirectToAction(nameof(Details), new { id });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddComment(int id, CreateTicketCommentRequest request)
+        {
+            if (!ModelState.IsValid || string.IsNullOrWhiteSpace(request.Message))
+            {
+                TempData["CommentError"] = "Komentarz nie moze byc pusty i musi miec maksymalnie 1000 znakow.";
+                return RedirectToAction(nameof(Details), new { id });
+            }
+
+            try
+            {
+                var ticket = _ticketService.GetDetails(id);
+                var authorization = await _authorizationService.AuthorizeAsync(
+                    User,
+                    ticket,
+                    DiscussionRequirement);
+
+                if (!authorization.Succeeded)
+                {
+                    return Forbid();
+                }
+
+                _ticketService.AddComment(id, request, GetCurrentUserId(), GetCurrentUserEmail());
+                TempData["CommentMessage"] = "Komentarz dodany.";
+            }
+            catch (EntityNotFoundException)
+            {
+                return NotFound();
             }
 
             return RedirectToAction(nameof(Details), new { id });
@@ -108,6 +173,16 @@ namespace UniDesk.Web.Controllers
             {
                 return NotFound();
             }
+        }
+
+        private string GetCurrentUserId()
+        {
+            return User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown-user";
+        }
+
+        private string GetCurrentUserEmail()
+        {
+            return User.Identity?.Name ?? "unknown@unidesk.local";
         }
     }
 }

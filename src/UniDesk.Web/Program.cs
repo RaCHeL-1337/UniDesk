@@ -1,16 +1,21 @@
+using System.Security.Claims;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Serilog;
 using Serilog.Events;
 using Serilog.Formatting.Json;
+using UniDesk.Web.Authorization;
 using UniDesk.Web.DTOs;
 using UniDesk.Web.Health;
 using UniDesk.Web.Logging;
 using UniDesk.Web.Middleware;
 using UniDesk.Web.Models;
+using UniDesk.Web.Options;
 using UniDesk.Web.Services;
 using Microsoft.EntityFrameworkCore;
 using UniDesk.Web.Data;
@@ -39,7 +44,6 @@ builder.Host.UseSerilog((context, _, loggerConfiguration) =>
             rollingInterval: RollingInterval.Day);
 });
 
-// Add services to the container.
 builder.Services.AddControllersWithViews();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -51,6 +55,38 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 builder.Services.AddProblemDetails();
+builder.Services.Configure<DiagnosticsOptions>(
+    builder.Configuration.GetSection("Diagnostics"));
+builder.Services.Configure<SeedDataOptions>(
+    builder.Configuration.GetSection("SeedData"));
+builder.Services.Configure<RequestRateLimitOptions>(
+    builder.Configuration.GetSection("RateLimiting"));
+
+var requestRateLimitOptions = builder.Configuration
+    .GetSection("RateLimiting")
+    .Get<RequestRateLimitOptions>() ?? new RequestRateLimitOptions();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+    {
+        var partitionKey = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
+            ?? context.Connection.RemoteIpAddress?.ToString()
+            ?? "anonymous";
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey,
+            _ => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = requestRateLimitOptions.PermitLimit,
+                QueueLimit = requestRateLimitOptions.QueueLimit,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                Window = TimeSpan.FromSeconds(requestRateLimitOptions.WindowSeconds)
+            });
+    });
+});
 
 builder.Services.AddDbContext<UniDeskDbContext>(options =>
     options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
@@ -122,6 +158,8 @@ builder.Services.AddAuthorization(options =>
         .Build();
 });
 
+builder.Services.AddSingleton<IAuthorizationHandler, TicketDiscussionAuthorizationHandler>();
+builder.Services.AddSingleton<IMarkdownRenderer, SafeMarkdownRenderer>();
 builder.Services.AddScoped<TicketService>();
 builder.Services.AddScoped<ITicketService>(provider => provider.GetRequiredService<TicketService>());
 
@@ -129,7 +167,7 @@ var app = builder.Build();
 
 app.Lifetime.ApplicationStopped.Register(Log.CloseAndFlush);
 
-await IdentitySeedData.EnsureSeedUserAsync(app.Services, app.Configuration);
+await IdentitySeedData.EnsureSeedUserAsync(app.Services);
 
 app.Use(async (context, next) =>
 {
@@ -147,7 +185,6 @@ app.UseMiddleware<CorrelationIdMiddleware>();
 app.UseMiddleware<EntityNotFoundExceptionMiddleware>();
 app.UseMiddleware<GlobalExceptionLoggingMiddleware>();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -156,7 +193,6 @@ if (app.Environment.IsDevelopment())
 else
 {
     app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
@@ -164,6 +200,8 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 
 app.UseRouting();
+
+app.UseRateLimiter();
 
 app.UseSerilogRequestLogging();
 
@@ -206,14 +244,36 @@ static IResult GetTicketsV2(ITicketService ticketService)
     return Results.Ok(ticketService.GetAllForApi());
 }
 
-static IResult CreateTicketV2(CreateTicketRequest request, ITicketService ticketService)
+static IResult CreateTicketV2(
+    CreateTicketRequest request,
+    ITicketService ticketService,
+    ClaimsPrincipal user)
 {
-    var created = ticketService.Create(request);
+    var created = ticketService.Create(
+        request,
+        GetCurrentUserId(user),
+        GetCurrentUserEmail(user));
     return Results.Created($"/api/v2/tickets/{created.Id}", created);
 }
 
-static IResult UpdateTicketV2(int id, CreateTicketRequest request, ITicketService ticketService)
+static async Task<IResult> UpdateTicketV2(
+    int id,
+    CreateTicketRequest request,
+    ITicketService ticketService,
+    IAuthorizationService authorizationService,
+    ClaimsPrincipal user)
 {
+    var ticket = ticketService.GetDetails(id);
+    var authorization = await authorizationService.AuthorizeAsync(
+        user,
+        ticket,
+        new TicketDiscussionRequirement());
+
+    if (!authorization.Succeeded)
+    {
+        return Results.Forbid();
+    }
+
     ticketService.Update(id, request);
     return Results.NoContent();
 }
@@ -222,6 +282,16 @@ static IResult DeleteTicketV2(int id, ITicketService ticketService)
 {
     ticketService.Delete(id);
     return Results.NoContent();
+}
+
+static string GetCurrentUserId(ClaimsPrincipal user)
+{
+    return user.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown-user";
+}
+
+static string GetCurrentUserEmail(ClaimsPrincipal user)
+{
+    return user.Identity?.Name ?? "unknown@unidesk.local";
 }
 
 public partial class Program { }

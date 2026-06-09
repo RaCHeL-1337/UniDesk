@@ -33,7 +33,7 @@
         border: 1px solid #222;
         display: inline-grid;
         gap: 7px;
-        grid-template-columns: minmax(160px, 340px) 125px 125px 90px auto;
+        grid-template-columns: minmax(160px, 340px) 125px 125px auto auto;
         margin-bottom: 14px;
         padding: 8px;
     }
@@ -128,12 +128,8 @@
             </select>
         </div>
 
-        <div>
-            <label for="pageSize">Na stronie</label>
-            <input id="pageSize" type="number" name="pageSize" value="@pageSize" min="1" class="form-control" />
-        </div>
-
         <input type="hidden" name="page" value="1" />
+        <input type="hidden" name="pageSize" value="@pageSize" />
         <button type="submit" class="plain-button">Filtruj</button>
         <a asp-action="Index" class="plain-button">Wyczysc</a>
     </form>

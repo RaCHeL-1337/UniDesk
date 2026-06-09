@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UniDesk.Web.Data;
 
@@ -10,9 +11,11 @@ using UniDesk.Web.Data;
 namespace UniDesk.Web.Migrations
 {
     [DbContext(typeof(UniDeskDbContext))]
-    partial class UniDeskDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260603174642_AddTicketComments")]
+    partial class AddTicketComments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "8.0.0");
@@ -220,16 +223,6 @@ namespace UniDesk.Web.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedByEmail")
-                        .IsRequired()
-                        .HasMaxLength(256)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedByUserId")
-                        .IsRequired()
-                        .HasMaxLength(450)
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Description")

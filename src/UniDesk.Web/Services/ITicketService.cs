@@ -7,8 +7,13 @@ namespace UniDesk.Web.Services
     {
         PagedResult<TicketListDto> GetAll(TicketQueryParameters parameters);
         IReadOnlyList<TicketReadDto> GetAllForApi();
-        Ticket GetById(int id);
-        TicketReadDto Create(CreateTicketRequest request);
+        TicketReadDto GetById(int id);
+        TicketDetailsDto GetDetails(int id);
+        TicketReadDto Create(
+            CreateTicketRequest request,
+            string authorId = "system",
+            string authorEmail = "system@unidesk.local");
+        TicketCommentDto AddComment(int ticketId, CreateTicketCommentRequest request, string authorId, string authorEmail);
         void Update(int id, CreateTicketRequest request);
         void UpdateStatus(int id, TicketStatus status);
         void Delete(int id);

@@ -141,6 +141,75 @@ body {
   margin-bottom: 16px;
 }
 
+.ticket-comments {
+  margin: 16px 0;
+  max-width: 760px;
+}
+
+.ticket-comments h2 {
+  font-size: 22px;
+  margin: 0 0 12px;
+}
+
+.ticket-comment-list {
+  border-left: 2px solid #222;
+  list-style: none;
+  margin: 0 0 16px 8px;
+  padding: 0 0 0 16px;
+}
+
+.ticket-comment-list li {
+  margin-bottom: 14px;
+  position: relative;
+}
+
+.ticket-comment-list li::before {
+  background: #fff;
+  border: 2px solid #222;
+  content: "";
+  height: 10px;
+  left: -22px;
+  position: absolute;
+  top: 4px;
+  width: 10px;
+}
+
+.ticket-comment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.ticket-comment-body p {
+  margin-bottom: 8px;
+}
+
+.ticket-comment-body code {
+  background: #f1f3f5;
+  border: 1px solid #d8dde3;
+  padding: 1px 4px;
+}
+
+.ticket-comment-body pre {
+  background: #20242a;
+  color: #f8f9fa;
+  overflow-x: auto;
+  padding: 10px;
+}
+
+.ticket-comment-body pre code {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  padding: 0;
+}
+
+.ticket-comment-form textarea {
+  margin-bottom: 10px;
+  max-width: 640px;
+}
+
 .ticket-status {
   border: 1px solid #555;
   display: inline-block;

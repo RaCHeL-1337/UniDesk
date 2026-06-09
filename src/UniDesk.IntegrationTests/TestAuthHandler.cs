@@ -10,6 +10,8 @@ namespace UniDesk.IntegrationTests;
 public class TestAuthOptions : AuthenticationSchemeOptions
 {
     public string[] Roles { get; set; } = { AppRoles.Admin };
+    public string UserId { get; set; } = "integration-test-user";
+    public string Email { get; set; } = "integration-test@unidesk.local";
 }
 
 public class TestAuthHandler : AuthenticationHandler<TestAuthOptions>
@@ -28,8 +30,8 @@ public class TestAuthHandler : AuthenticationHandler<TestAuthOptions>
     {
         var claims = new List<Claim>
         {
-            new Claim(ClaimTypes.NameIdentifier, "integration-test-user"),
-            new Claim(ClaimTypes.Name, "integration-test@unidesk.local")
+            new Claim(ClaimTypes.NameIdentifier, Options.UserId),
+            new Claim(ClaimTypes.Name, Options.Email)
         };
 
         claims.AddRange(Options.Roles.Select(role => new Claim(ClaimTypes.Role, role)));

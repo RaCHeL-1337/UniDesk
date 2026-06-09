@@ -1,10 +1,3 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using Xunit;
 using UniDesk.Web.Models;
 
 namespace UniDesk.UnitTests.Services
@@ -15,7 +8,7 @@ namespace UniDesk.UnitTests.Services
         public void Paging_ShouldSkipCorrectNumber_WhenPage2()
         {
             var tickets = Enumerable.Range(1, 15)
-                .Select(i => new Ticket
+                .Select(_ => new Ticket
                 {
                     Title = "T",
                     Description = "D"
@@ -37,7 +30,7 @@ namespace UniDesk.UnitTests.Services
         public void Paging_ShouldReturnFirstPage_WhenPage1()
         {
             var tickets = Enumerable.Range(1, 15)
-                .Select(i => new Ticket
+                .Select(_ => new Ticket
                 {
                     Title = "T",
                     Description = "D"

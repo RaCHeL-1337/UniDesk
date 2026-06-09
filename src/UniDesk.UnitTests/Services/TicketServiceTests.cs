@@ -1,9 +1,10 @@
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using UniDesk.Web.Data;
 using UniDesk.Web.DTOs;
 using UniDesk.Web.Models;
+using UniDesk.Web.Options;
 using UniDesk.Web.Services;
 
 namespace UniDesk.UnitTests.Services
@@ -13,8 +14,8 @@ namespace UniDesk.UnitTests.Services
         [Fact]
         public void UpdateStatus_ShouldChangeStatus_WhenValid()
         {
-            using var connection = CreateConnection();
-            var service = CreateService(connection);
+            using var db = CreateDbContext();
+            var service = CreateService(db);
 
             var created = service.Create(new CreateTicketRequest
             {
@@ -31,8 +32,8 @@ namespace UniDesk.UnitTests.Services
         [Fact]
         public void UpdateStatus_ShouldThrowException_WhenTicketIsAlreadyClosed()
         {
-            using var connection = CreateConnection();
-            var service = CreateService(connection);
+            using var db = CreateDbContext();
+            var service = CreateService(db);
 
             var created = service.Create(new CreateTicketRequest
             {
@@ -48,23 +49,22 @@ namespace UniDesk.UnitTests.Services
             Assert.Equal("Ticket is already closed.", exception.Message);
         }
 
-        private static SqliteConnection CreateConnection()
-        {
-            var connection = new SqliteConnection("DataSource=:memory:");
-            connection.Open();
-            return connection;
-        }
-
-        private static TicketService CreateService(SqliteConnection connection)
+        private static UniDeskDbContext CreateDbContext()
         {
             var options = new DbContextOptionsBuilder<UniDeskDbContext>()
-                .UseSqlite(connection)
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
                 .Options;
 
-            var db = new UniDeskDbContext(options);
-            db.Database.EnsureCreated();
+            return new UniDeskDbContext(options);
+        }
 
-            return new TicketService(db, NullLogger<TicketService>.Instance);
+        private static TicketService CreateService(UniDeskDbContext db)
+        {
+            return new TicketService(
+                db,
+                NullLogger<TicketService>.Instance,
+                Options.Create(new DiagnosticsOptions()),
+                new SafeMarkdownRenderer());
         }
     }
 }

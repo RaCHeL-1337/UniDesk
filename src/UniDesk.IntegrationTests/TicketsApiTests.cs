@@ -274,6 +274,50 @@ public class TicketsApiTests
     }
 
     [Fact]
+    public async Task Mvc_details_allows_adding_comment_to_ticket_timeline()
+    {
+        await using var factory = new UniDeskWebApplicationFactory();
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        int ticketId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var ticket = new Ticket { Title = "Commented ticket", Description = "Desc", Status = TicketStatus.New };
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        var detailsResponse = await client.GetAsync($"/Tickets/Details/{ticketId}");
+        detailsResponse.EnsureSuccessStatusCode();
+
+        var detailsHtml = await detailsResponse.Content.ReadAsStringAsync();
+        var tokenMatch = Regex.Match(detailsHtml, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"");
+        Assert.True(tokenMatch.Success);
+
+        var commentResponse = await client.PostAsync($"/Tickets/AddComment/{ticketId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = tokenMatch.Groups[1].Value,
+            ["Message"] = "This is a timeline comment."
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, commentResponse.StatusCode);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+        var storedComment = verifyDb.TicketComments.Single(comment => comment.TicketId == ticketId);
+
+        Assert.Equal("This is a timeline comment.", storedComment.Message);
+        Assert.Equal("integration-test-user", storedComment.AuthorId);
+        Assert.Equal("integration-test@unidesk.local", storedComment.AuthorEmail);
+    }
+
+    [Fact]
     public async Task MinimalApiV2_get_returns_ok_and_list_of_tickets()
     {
         await using var factory = new UniDeskWebApplicationFactory();
@@ -465,7 +509,7 @@ public class TicketsApiTests
         await using var factory = new UniDeskWebApplicationFactory(useTestAuthentication: false);
         var client = factory.CreateClient(new()
         {
-            AllowAutoRedirect = false,
+            AllowAutoRedirect = false, 
             BaseAddress = new Uri("https://localhost")
         });
 
@@ -754,6 +798,191 @@ public class TicketsApiTests
         Assert.Contains(checks.EnumerateArray(), check =>
             check.GetProperty("name").GetString() == "sqlite"
             && check.GetProperty("status").GetString() == "Healthy");
+    }
+
+    [Fact]
+    public async Task Discussion_is_locked_for_non_owner_non_admin_user()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(
+            testRoles: new[] { AppRoles.User },
+            testUserId: "outsider-user",
+            testEmail: "outsider@unidesk.local");
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        int ticketId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var ticket = new Ticket
+            {
+                Title = "Private discussion",
+                Description = "Desc",
+                Status = TicketStatus.New,
+                CreatedByUserId = "owner-user",
+                CreatedByEmail = "owner@unidesk.local",
+                Comments =
+                {
+                    new TicketComment
+                    {
+                        AuthorId = "owner-user",
+                        AuthorEmail = "owner@unidesk.local",
+                        Message = "Private message"
+                    }
+                }
+            };
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        var response = await client.GetAsync($"/Tickets/Details/{ticketId}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        Assert.Contains("Interfejs dyskusji jest zablokowany", html);
+        Assert.Contains("Zarzadzanie statusem jest zablokowane", html);
+        Assert.DoesNotContain("Private message", html);
+        Assert.DoesNotContain("name=\"Message\"", html);
+        Assert.DoesNotContain("name=\"Status\"", html);
+    }
+
+    [Fact]
+    public async Task Non_owner_non_admin_user_cannot_update_ticket_status()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(
+            testRoles: new[] { AppRoles.User },
+            testUserId: "outsider-user",
+            testEmail: "outsider@unidesk.local");
+        var client = factory.CreateClient(new()
+        {
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        int ticketId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var ticket = new Ticket
+            {
+                Title = "Protected status",
+                Description = "Desc",
+                Status = TicketStatus.New,
+                CreatedByUserId = "owner-user",
+                CreatedByEmail = "owner@unidesk.local"
+            };
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        var response = await client.PutAsJsonAsync($"/api/tickets/{ticketId}/status", new UpdateTicketStatusRequest
+        {
+            Status = TicketStatus.InProgress
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        using var verifyScope = factory.Services.CreateScope();
+        var verifyDb = verifyScope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+        var unchanged = await verifyDb.Tickets.FindAsync(ticketId);
+        Assert.NotNull(unchanged);
+        Assert.Equal(TicketStatus.New, unchanged!.Status);
+    }
+
+    [Fact]
+    public async Task Ticket_owner_can_add_markdown_comment_without_xss()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(
+            testRoles: new[] { AppRoles.User },
+            testUserId: "owner-user",
+            testEmail: "owner@unidesk.local");
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        int ticketId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<UniDeskDbContext>();
+            var ticket = new Ticket
+            {
+                Title = "Owner discussion",
+                Description = "Desc",
+                Status = TicketStatus.New,
+                CreatedByUserId = "owner-user",
+                CreatedByEmail = "owner@unidesk.local"
+            };
+            db.Tickets.Add(ticket);
+            await db.SaveChangesAsync();
+            ticketId = ticket.Id;
+        }
+
+        var detailsResponse = await client.GetAsync($"/Tickets/Details/{ticketId}");
+        detailsResponse.EnsureSuccessStatusCode();
+        var detailsHtml = await detailsResponse.Content.ReadAsStringAsync();
+        var tokenMatch = Regex.Match(detailsHtml, "name=\"__RequestVerificationToken\" type=\"hidden\" value=\"([^\"]+)\"");
+        Assert.True(tokenMatch.Success);
+
+        var postResponse = await client.PostAsync($"/Tickets/AddComment/{ticketId}", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["__RequestVerificationToken"] = tokenMatch.Groups[1].Value,
+            ["Message"] = "**bold** `<tag>` <script>alert(1)</script>"
+        }));
+
+        Assert.Equal(HttpStatusCode.Redirect, postResponse.StatusCode);
+
+        var updatedDetails = await client.GetAsync($"/Tickets/Details/{ticketId}");
+        updatedDetails.EnsureSuccessStatusCode();
+        var updatedHtml = await updatedDetails.Content.ReadAsStringAsync();
+        Assert.Contains("<strong>bold</strong>", updatedHtml);
+        Assert.Contains("<code>&lt;tag&gt;</code>", updatedHtml);
+        Assert.Contains("&lt;script&gt;alert(1)&lt;/script&gt;", updatedHtml);
+        Assert.DoesNotContain("<script>", updatedHtml);
+    }
+
+    [Fact]
+    public async Task Rate_limiter_returns_429_when_request_limit_is_exceeded()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(useTestAuthentication: false);
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        for (var i = 0; i < 60; i++)
+        {
+            var response = await client.GetAsync("/health/live");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        var limitedResponse = await client.GetAsync("/health/live");
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, limitedResponse.StatusCode);
+    }
+
+    [Fact]
+    public async Task Swagger_is_not_available_outside_development()
+    {
+        await using var factory = new UniDeskWebApplicationFactory(
+            environmentName: "Production");
+        var client = factory.CreateClient(new()
+        {
+            AllowAutoRedirect = false,
+            BaseAddress = new Uri("https://localhost")
+        });
+
+        var uiResponse = await client.GetAsync("/swagger");
+        var documentResponse = await client.GetAsync("/swagger/v1/swagger.json");
+
+        Assert.Equal(HttpStatusCode.NotFound, uiResponse.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, documentResponse.StatusCode);
     }
 
     [Fact]

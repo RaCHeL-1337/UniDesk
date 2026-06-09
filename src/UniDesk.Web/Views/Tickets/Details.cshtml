@@ -1,4 +1,4 @@
-@model UniDesk.Web.Models.Ticket
+@model UniDesk.Web.DTOs.TicketDetailsDto
 @using UniDesk.Web.Data
 
 @{
@@ -49,7 +49,21 @@
     <p class="text-danger">@TempData["StatusError"]</p>
 }
 
-@if (Model.Status == UniDesk.Web.Models.TicketStatus.Closed)
+@if (TempData["CommentMessage"] != null)
+{
+    <p class="text-success">@TempData["CommentMessage"]</p>
+}
+
+@if (TempData["CommentError"] != null)
+{
+    <p class="text-danger">@TempData["CommentError"]</p>
+}
+
+@if (!Model.CanManageTicket)
+{
+    <p class="plain-muted">Zarzadzanie statusem jest zablokowane dla osob spoza sprawy.</p>
+}
+else if (Model.Status == UniDesk.Web.Models.TicketStatus.Closed)
 {
     <p>Zgloszenie jest zamkniete. Status nie moze byc zmieniony.</p>
 }
@@ -70,6 +84,45 @@ else
         <button type="submit" class="plain-button">Zapisz status</button>
     </form>
 }
+
+<section class="plain-panel ticket-comments">
+    <h2>Dyskusja</h2>
+
+    @if (!Model.CanParticipateInDiscussion)
+    {
+        <p class="plain-muted">Interfejs dyskusji jest zablokowany dla osob spoza sprawy.</p>
+    }
+    else if (Model.Comments.Count == 0)
+    {
+        <p class="plain-muted">Brak komentarzy.</p>
+    }
+    else
+    {
+        <ol class="ticket-comment-list">
+            @foreach (var comment in Model.Comments)
+            {
+                <li>
+                    <div class="ticket-comment-meta">
+                        <strong>@comment.AuthorEmail</strong>
+                        <span>@comment.CreatedAt.ToString("yyyy-MM-dd HH:mm")</span>
+                    </div>
+                    <div class="ticket-comment-body">@Html.Raw(comment.MessageHtml)</div>
+                </li>
+            }
+        </ol>
+    }
+
+    @if (Model.CanParticipateInDiscussion)
+    {
+        <form asp-action="AddComment" asp-route-id="@Model.Id" method="post" class="ticket-comment-form">
+            @Html.AntiForgeryToken()
+
+            <label for="Message">Nowy komentarz</label>
+            <textarea id="Message" name="Message" class="form-control" maxlength="1000" rows="4"></textarea>
+            <button type="submit" class="plain-button">Dodaj komentarz</button>
+        </form>
+    }
+</section>
 
 <div class="plain-actions">
     <a asp-action="Index" class="plain-button">Powrot</a>

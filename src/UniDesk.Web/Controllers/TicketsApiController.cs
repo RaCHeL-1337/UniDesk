@@ -1,7 +1,9 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using UniDesk.Web.Authorization;
 using UniDesk.Web.Data;
 using UniDesk.Web.DTOs;
 using UniDesk.Web.Exceptions;
@@ -16,10 +18,16 @@ namespace UniDesk.Web.Controllers;
 [Tags("Tickets")]
 public class TicketsApiController : ControllerBase
 {
+    private static readonly TicketDiscussionRequirement TicketAccessRequirement = new();
+
+    private readonly IAuthorizationService _authorizationService;
     private readonly ITicketService _ticketService;
 
-    public TicketsApiController(ITicketService ticketService)
+    public TicketsApiController(
+        ITicketService ticketService,
+        IAuthorizationService authorizationService)
     {
+        _authorizationService = authorizationService;
         _ticketService = ticketService;
     }
 
@@ -38,17 +46,7 @@ public class TicketsApiController : ControllerBase
     {
         try
         {
-            var ticket = _ticketService.GetById(id);
-            var dto = new TicketReadDto
-            {
-                Id = ticket.Id,
-                Title = ticket.Title,
-                Status = ticket.Status,
-                CreatedAt = ticket.CreatedAt,
-                UpdatedAt = ticket.UpdatedAt
-            };
-
-            return Ok(dto);
+            return Ok(_ticketService.GetById(id));
         }
         catch (EntityNotFoundException)
         {
@@ -67,7 +65,7 @@ public class TicketsApiController : ControllerBase
     {
         try
         {
-            var dto = _ticketService.Create(request);
+            var dto = _ticketService.Create(request, GetCurrentUserId(), GetCurrentUserEmail());
 
             return CreatedAtAction(nameof(GetById), new { id = dto.Id }, dto);
         }
@@ -84,10 +82,22 @@ public class TicketsApiController : ControllerBase
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public IActionResult Update(int id, [FromBody] CreateTicketRequest request)
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> Update(int id, [FromBody] CreateTicketRequest request)
     {
         try
         {
+            var ticket = _ticketService.GetDetails(id);
+            var authorization = await _authorizationService.AuthorizeAsync(
+                User,
+                ticket,
+                TicketAccessRequirement);
+
+            if (!authorization.Succeeded)
+            {
+                return Forbid();
+            }
+
             _ticketService.Update(id, request);
 
             return NoContent();
@@ -112,10 +122,22 @@ public class TicketsApiController : ControllerBase
     [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public IActionResult UpdateStatus(int id, [FromBody] UpdateTicketStatusRequest request)
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> UpdateStatus(int id, [FromBody] UpdateTicketStatusRequest request)
     {
         try
         {
+            var ticket = _ticketService.GetDetails(id);
+            var authorization = await _authorizationService.AuthorizeAsync(
+                User,
+                ticket,
+                TicketAccessRequirement);
+
+            if (!authorization.Succeeded)
+            {
+                return Forbid();
+            }
+
             _ticketService.UpdateStatus(id, request.Status!.Value);
 
             return NoContent();
@@ -160,5 +182,15 @@ public class TicketsApiController : ControllerBase
                 title: "Ticket not found",
                 detail: $"Ticket with id={id} was not found.");
         }
+    }
+
+    private string GetCurrentUserId()
+    {
+        return User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "unknown-user";
+    }
+
+    private string GetCurrentUserEmail()
+    {
+        return User.Identity?.Name ?? "unknown@unidesk.local";
     }
 }
